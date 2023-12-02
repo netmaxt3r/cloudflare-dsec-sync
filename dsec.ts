@@ -50,6 +50,46 @@ export default class dSec {
         return this.patch(`rrsets/`, JSON.stringify(rx));
     }
 
+    async clearExtra(records: cloudflare.DnsRecord[]) {
+        const rx: DRecord[] = [];
+        for (let record of this.records) {
+            record.removeRecords = [];
+            if (record.type === 'NS') continue; // don't touch NS keep as it initial manual setup
+            if (record.type === 'SRV') continue; // TODO SRV
+            const crs = records.filter(
+                (x: any) => x.type == record.type &&
+                    x.name + '.' === record.name,
+            );
+            const crsX = crs.map(x => {
+                return {
+                    ...x,
+                    trc: this.transformRecordContent(x),
+                };
+            });
+            for (let r of record.records) {
+                const cr = crsX.find(x => x.trc === r);
+                if (!cr) {
+                    console.log('extra record', record.type, record.name, r);
+                    record.removeRecords.push(r);
+                }
+            }
+        }
+        const mods = this.records.filter(x => x.removeRecords && x.removeRecords.length > 0);
+        for (let mod of mods) {
+            const nr = mod.records.filter(x => {
+                return !mod.removeRecords?.includes(x);
+            });
+            rx.push({
+                ...mod,
+                records: nr,
+                removeRecords: undefined,
+            });
+        }
+        if (rx.length > 0)
+            return this.patch(`rrsets/`, JSON.stringify(rx));
+        return [];
+    }
+
     private async get(path: string) {
         let config = {
             method: 'get',
@@ -128,5 +168,6 @@ interface DRecord {
     ttl: number;
     created: string;
     touched: string;
+    removeRecords?: string[];
 }
 

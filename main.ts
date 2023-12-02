@@ -24,7 +24,7 @@ var cf = new cloudflare({
 
 
 async function main() {
-    const dRecords = await descClient.getRecords();
+    await descClient.getRecords();
     // console.log(grouped);
     const zoneResults: any = await cf.zones.browse();
     const zone = zoneResults.result.find((zone: any) => zone.name === domain);
@@ -63,10 +63,12 @@ async function main() {
             const r = await descClient.createRecord(missingRecords);
             // console.log(r);
             console.log('records updated');
+            await descClient.getRecords();
         } else {
             console.log('no missing records');
         }
-        //TODO extra records in desec
+        const rc = await descClient.clearExtra(cRecords);
+        console.log("updated ", rc.length);
 
 
     }
