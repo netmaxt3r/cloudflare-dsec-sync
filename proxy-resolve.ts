@@ -1,4 +1,4 @@
-import dns, { DnsAnswer, Packet } from 'dns2';
+import dns, { DnsAnswer, DnsResponse, Packet, PacketQuestion } from 'dns2';
 import cloudflare from 'cloudflare';
 
 export function getProxyResolver(servers: string[]): ProxyResolver {
@@ -53,9 +53,14 @@ export function getProxyResolver(servers: string[]): ProxyResolver {
             return undefined;
         },
 
+        async query(domain: string, type: PacketQuestion) {
+            return dnsClient.query(domain, type);
+        },
     };
 }
 
 export interface ProxyResolver {
     resolveProxyRecord(r: cloudflare.DnsRecord): Promise<cloudflare.DnsRecord[] | undefined>;
+
+    query(domain: string, type: PacketQuestion): Promise<DnsResponse>;
 }

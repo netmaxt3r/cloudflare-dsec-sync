@@ -14,7 +14,7 @@ export default class dSec {
         return recs;
     }
 
-    async checkExits(record: cloudflare.DnsRecord) {
+    checkExits(record: cloudflare.DnsRecord) {
         const r = this.findRecord(record);
         const c = this.transformRecordContent(record);
         if (r) {
@@ -30,9 +30,8 @@ export default class dSec {
         const rx: DRecord[] = [];
         for (let record of records) {
             if (record.type === 'SRV') continue; //TODO SRV
-            const name = record.name + '.';
             const ss = this.transformRecordContent(record);
-            let zoneName = (record as any).zone_name;
+            let zoneName = record.zone_name;
             const subname = zoneName == record.name ? '' : record.name.replace('.' + zoneName, '');
             let ri = rx.find(x =>
                 x.type === record.type && x.subname === subname);
@@ -56,6 +55,8 @@ export default class dSec {
             record.removeRecords = [];
             if (record.type === 'NS') continue; // don't touch NS keep as it initial manual setup
             if (record.type === 'SRV') continue; // TODO SRV
+            if (record.type === 'TXT' && record.subname == '_acme-challenge') continue; // acme records hidden on cloudflare rest api
+
             const crs = records.filter(
                 (x: any) => x.type == record.type &&
                     x.name + '.' === record.name,
@@ -88,6 +89,17 @@ export default class dSec {
         if (rx.length > 0)
             return this.patch(`rrsets/`, JSON.stringify(rx));
         return [];
+    }
+
+    async clear(sub: string, type: string) {
+        const rx: Partial<DRecord>[] = [];
+        rx.push({
+            subname: sub,
+            type: type,
+            records: [],
+        });
+
+        return this.patch(`rrsets/`, JSON.stringify(rx));
     }
 
     private async get(path: string) {

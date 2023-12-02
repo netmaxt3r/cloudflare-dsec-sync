@@ -1,7 +1,7 @@
 import cloudflare from 'cloudflare';
 import desc from './dsec';
 import { getProxyResolver } from './proxy-resolve';
-import { missingRecordsInDSec } from './utils';
+import './utils';
 
 const domain = process.env.SYNC_DOMAIN || '';
 if (domain == '') {
@@ -30,37 +30,25 @@ async function main() {
     const zoneResults: any = await cf.zones.browse();
     const zone = zoneResults.result.find((zone: any) => zone.name === domain);
     if (zone) {
-        const crecsResult = await cf.dnsRecords.browse(zone.id, {
-            per_page: 10000,
-        });
-        // console.log(zone);
         const pr = getProxyResolver(zone.name_servers);
-        const cRecords: cloudflare.DnsRecord[] = [];
-        if (crecsResult.result) {
-            for (let r of crecsResult.result) {
-                if ((r.type === 'A' || r.type === 'AAAA' || r.type === 'CNAME') && r.proxied) {
-                    const rcs = await pr.resolveProxyRecord(r);
-                    if (rcs) cRecords.push(...rcs);
-                } else {
-                    cRecords.push(r);
-                }
-            }
-        }
+        const drs = await pr.query('_acme-challenge.' + domain, 'TXT');
+        const cRecords: cloudflare.DnsRecord[] = drs.answers.map(x => {
+            return {
+                type: 'TXT',
+                name: '_acme-challenge.' + domain,
+                content: `"${x.data}"`,
+                zone_name: domain,
+                ttl: 60,
+            };
+        });
 
-        const missingRecords: cloudflare.DnsRecord[] = missingRecordsInDSec(cRecords, descClient);
+        await descClient.clear('_acme-challenge', 'TXT');
+        await descClient.getRecords();
 
-        if (missingRecords.length > 0) {
-            const r = await descClient.createRecord(missingRecords);
-            // console.log(r);
+        if (cRecords.length > 0) {
+            await descClient.createRecord(cRecords);
             console.log('records updated');
-            await descClient.getRecords();
-        } else {
-            console.log('no missing records');
         }
-        const rc = await descClient.clearExtra(cRecords);
-        console.log('updated ', rc.length);
-
-
     }
 }
 
