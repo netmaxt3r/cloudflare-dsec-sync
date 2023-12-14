@@ -159,6 +159,10 @@ export default class dSec {
                 break;
             case 'MX':
                 return `${record.priority} ${record.content}.`;
+            case 'CNAME':
+                if (!record.content.endsWith('.'))
+                    return `${record.content}.`;
+                return record.content;
             case 'URI':
                 break;
             case 'TXT':
